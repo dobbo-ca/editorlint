@@ -38,7 +38,7 @@ jobs:
   update-homebrew:
     needs: release
     runs-on: ubuntu-latest
-    if: needs.release.outputs.is_release == 'true'
+    if: ${{ needs.release.outputs.is_release == 'true' && inputs.dry_run != true }}
     steps:
       - name: Get SHA256s from release assets
         id: checksums
@@ -86,7 +86,7 @@ jobs:
   update-chocolatey:
     needs: release
     runs-on: ubuntu-latest
-    if: needs.release.outputs.is_release == 'true'
+    if: ${{ needs.release.outputs.is_release == 'true' && inputs.dry_run != true }}
     steps:
       - name: Get Windows AMD64 SHA256 from release assets
         id: windows-checksum
