@@ -141,7 +141,8 @@ jobs:
       - name: Move major version alias (v0/v1)
         run: |
           VERSION="${{ needs.release.outputs.version }}"
-          MAJOR="v$(echo "$VERSION" | cut -d. -f1)"
+          # Tolerate both bare (1.0.0) and v-prefixed (v1.0.0) tags -> v1
+          MAJOR="v$(echo "$VERSION" | sed 's/^v//' | cut -d. -f1)"
 
           # Composite-action consumers pin `uses: dobbo-ca/editorlint@vN`; move that
           # floating major tag to this release commit.
