@@ -168,14 +168,20 @@ end_of_line = crlf
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew tap cdobbyn/taps
+brew tap dobbo-ca/taps
 brew install editorlint
 ```
 
 Or install directly:
 
 ```bash
-brew install cdobbyn/taps/editorlint
+brew install dobbo-ca/taps/editorlint
+```
+
+### Chocolatey (Windows)
+
+```powershell
+choco install editorlint
 ```
 
 ### Go Install
@@ -187,6 +193,32 @@ go install github.com/dobbo-ca/editorlint@latest
 ### Pre-built Binaries
 
 Download pre-built binaries from the [releases page](https://github.com/dobbo-ca/editorlint/releases).
+
+## GitHub Action
+
+editorlint ships a composite action from this same repository. Reference it with the
+floating major tag:
+
+```yaml
+- uses: dobbo-ca/editorlint@v1
+  with:
+    path: .
+    fix: false
+    recurse: true
+    reporter: default
+    fail-on-violations: true
+```
+
+To post results as a PR comment, pass a token and enable `pr-comment`:
+
+```yaml
+- uses: dobbo-ca/editorlint@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    pr-comment: true
+```
+
+See [`action.yml`](action.yml) for the full input list.
 
 ## Architecture
 

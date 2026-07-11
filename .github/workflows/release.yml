@@ -30,10 +30,10 @@ jobs:
       version-pkg: ''
       extra-ldflags: '-s -w'
       build-matrix: '[{"goos":"linux","goarch":"amd64"},{"goos":"linux","goarch":"arm64"},{"goos":"darwin","goarch":"amd64"},{"goos":"darwin","goarch":"arm64"},{"goos":"windows","goarch":"amd64"},{"goos":"windows","goarch":"arm64"}]'
-      asset-name-template: 'editorlint_v{version}_{goos}_{goarch}'
+      asset-name-template: 'editorlint-{version}-{goos}-{goarch}'
     secrets:
-      app-id: ${{ vars.AUTOMATIONS_APP_ID }}
-      app-pem: ${{ secrets.AUTOMATIONS_APP_PRIVATE_KEY }}
+      app-id: ${{ vars.GH_PUB_APP_CLIENT_ID }}
+      app-pem: ${{ secrets.GH_PUB_APP_PEM }}
 
   update-homebrew:
     needs: release
@@ -46,10 +46,10 @@ jobs:
           VERSION=${{ needs.release.outputs.version }}
 
           # Download checksum files for each platform
-          curl -L -o darwin_arm64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint_v${VERSION}_darwin_arm64.tar.gz.sha256"
-          curl -L -o darwin_amd64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint_v${VERSION}_darwin_amd64.tar.gz.sha256"
-          curl -L -o linux_arm64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint_v${VERSION}_linux_arm64.tar.gz.sha256"
-          curl -L -o linux_amd64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint_v${VERSION}_linux_amd64.tar.gz.sha256"
+          curl -L -o darwin_arm64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint-${VERSION}-darwin-arm64.tar.gz.sha256"
+          curl -L -o darwin_amd64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint-${VERSION}-darwin-amd64.tar.gz.sha256"
+          curl -L -o linux_arm64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint-${VERSION}-linux-arm64.tar.gz.sha256"
+          curl -L -o linux_amd64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint-${VERSION}-linux-amd64.tar.gz.sha256"
 
           # Extract SHA256 values (first column)
           DARWIN_ARM64_SHA256=$(cut -d' ' -f1 darwin_arm64.sha256)
@@ -66,20 +66,21 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.AUTOMATIONS_APP_ID }}
-          private-key: ${{ secrets.AUTOMATIONS_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GH_PUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_PUB_APP_PEM }}
           owner: ${{ github.repository_owner }}
 
       - name: Trigger Homebrew tap update
         run: |
           gh api repos/${{ github.repository_owner }}/homebrew-taps/dispatches \
             --method POST \
-            --field event_type="update_editorlint" \
+            --field event_type="update-formula" \
+            --field client_payload[formula]="editorlint" \
             --field client_payload[version]="${{ needs.release.outputs.version }}" \
-            --field client_payload[darwin_arm64_sha256]="${{ steps.checksums.outputs.DARWIN_ARM64_SHA256 }}" \
-            --field client_payload[darwin_amd64_sha256]="${{ steps.checksums.outputs.DARWIN_AMD64_SHA256 }}" \
-            --field client_payload[linux_arm64_sha256]="${{ steps.checksums.outputs.LINUX_ARM64_SHA256 }}" \
-            --field client_payload[linux_amd64_sha256]="${{ steps.checksums.outputs.LINUX_AMD64_SHA256 }}"
+            --field client_payload[darwin_arm64_sha]="${{ steps.checksums.outputs.DARWIN_ARM64_SHA256 }}" \
+            --field client_payload[darwin_amd64_sha]="${{ steps.checksums.outputs.DARWIN_AMD64_SHA256 }}" \
+            --field client_payload[linux_arm64_sha]="${{ steps.checksums.outputs.LINUX_ARM64_SHA256 }}" \
+            --field client_payload[linux_amd64_sha]="${{ steps.checksums.outputs.LINUX_AMD64_SHA256 }}"
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
@@ -94,7 +95,7 @@ jobs:
           VERSION=${{ needs.release.outputs.version }}
 
           # Download checksum file for Windows AMD64
-          curl -L -o windows_amd64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint_v${VERSION}_windows_amd64.zip.sha256"
+          curl -L -o windows_amd64.sha256 "https://github.com/${{ github.repository }}/releases/download/${VERSION}/editorlint-${VERSION}-windows-amd64.zip.sha256"
 
           # Extract SHA256 value (first column)
           WINDOWS_AMD64_SHA256=$(cut -d' ' -f1 windows_amd64.sha256)
@@ -105,8 +106,8 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ vars.AUTOMATIONS_APP_ID }}
-          private-key: ${{ secrets.AUTOMATIONS_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.GH_PUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_PUB_APP_PEM }}
           owner: ${{ github.repository_owner }}
 
       - name: Trigger Chocolatey package update
@@ -116,5 +117,35 @@ jobs:
             --field event_type="update_editorlint" \
             --field client_payload[version]="${{ needs.release.outputs.version }}" \
             --field client_payload[windows_amd64_sha256]="${{ steps.windows-checksum.outputs.WINDOWS_AMD64_SHA256 }}"
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+  update-major-alias:
+    needs: release
+    runs-on: ubuntu-latest
+    if: ${{ needs.release.outputs.is_release == 'true' && inputs.dry_run != true }}
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_PUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_PUB_APP_PEM }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Move major version alias (v0/v1)
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          MAJOR="v$(echo "$VERSION" | cut -d. -f1)"
+
+          # Composite-action consumers pin `uses: dobbo-ca/editorlint@vN`; move that
+          # floating major tag to this release commit.
+          git tag -f "$MAJOR"
+          git push origin "$MAJOR" --force
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
